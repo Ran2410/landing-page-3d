@@ -1,0 +1,162 @@
+import { useEffect, useRef, useState } from 'react'
+import { progressToTime, scrollProgress, sectionIndexAt } from '../utils/scroll'
+
+async function fetchAsBlob(url, onProgress, signal) {
+  const response = await fetch(url, { signal })
+  if (!response.ok) throw new Error(`Video gagal dimuat (${response.status})`)
+
+  const total = Number(response.headers.get('content-length')) || 0
+  if (!response.body) {
+    onProgress(100)
+    return response.blob()
+  }
+
+  const reader = response.body.getReader()
+  const chunks = []
+  let received = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    received += value.length
+    onProgress(total ? Math.round((received / total) * 100) : 60)
+  }
+
+  onProgress(100)
+  return new Blob(chunks, { type: 'video/mp4' })
+}
+
+export function useScrollFilm({ rootRef, videoRef, sections, src, reducedMotion }) {
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [loadProgress, setLoadProgress] = useState(reducedMotion ? 100 : 0)
+  const [ready, setReady] = useState(reducedMotion)
+  const [error, setError] = useState('')
+  const targetRef = useRef(0)
+  const objectUrlRef = useRef('')
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setLoadProgress(100)
+      setReady(true)
+      setError('')
+      return undefined
+    }
+
+    const controller = new AbortController()
+    setLoadProgress(0)
+    setReady(false)
+    setError('')
+
+    fetchAsBlob(src, setLoadProgress, controller.signal)
+      .then((blob) => {
+        objectUrlRef.current = URL.createObjectURL(blob)
+        if (videoRef.current) videoRef.current.src = objectUrlRef.current
+      })
+      .catch((reason) => {
+        if (reason.name !== 'AbortError') setError(reason.message)
+      })
+
+    return () => {
+      controller.abort()
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
+    }
+  }, [reducedMotion, src, videoRef])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return undefined
+
+    const video = videoRef.current
+    const compactDevice = window.matchMedia('(max-width: 860px), (pointer: coarse)').matches
+    const minimumSeekInterval = compactDevice ? 72 : 48
+    const minimumTimeDelta = compactDevice ? 0.1 : 0.05
+    let animationFrame = 0
+    let seekTimer = 0
+    let lastSeekAt = 0
+    let queuedTime = null
+    let disposed = false
+
+    const desiredTime = () => progressToTime(targetRef.current, video?.duration)
+
+    const requestSeek = () => {
+      if (disposed || animationFrame || seekTimer) return
+      animationFrame = requestAnimationFrame((now) => {
+        animationFrame = 0
+        flushSeek(now)
+      })
+    }
+
+    const flushSeek = (now = performance.now()) => {
+      if (!video || video.readyState < 1) return
+
+      const nextTime = desiredTime()
+      if (video.seeking) {
+        // A fast flick can emit dozens of scroll events during one decoder seek.
+        // Retain only the newest destination so stale intermediate frames never queue.
+        queuedTime = nextTime
+        return
+      }
+
+      if (Math.abs(video.currentTime - nextTime) <= minimumTimeDelta) {
+        queuedTime = null
+        return
+      }
+
+      const wait = minimumSeekInterval - (now - lastSeekAt)
+      if (wait > 0) {
+        seekTimer = window.setTimeout(() => {
+          seekTimer = 0
+          requestSeek()
+        }, wait)
+        return
+      }
+
+      queuedTime = nextTime
+      lastSeekAt = performance.now()
+      if (typeof video.fastSeek === 'function' && Math.abs(video.currentTime - nextTime) > 0.75) {
+        video.fastSeek(nextTime)
+      } else {
+        video.currentTime = nextTime
+      }
+    }
+
+    const updateTarget = () => {
+      const rect = root.getBoundingClientRect()
+      targetRef.current = scrollProgress(rect.top, root.offsetHeight, window.innerHeight)
+      setActiveIndex((current) => {
+        const next = sectionIndexAt(targetRef.current, sections)
+        return current === next ? current : next
+      })
+      requestSeek()
+    }
+
+    const onSeeked = () => {
+      if (queuedTime !== null || Math.abs(video.currentTime - desiredTime()) > minimumTimeDelta) {
+        requestSeek()
+      }
+    }
+
+    updateTarget()
+    window.addEventListener('scroll', updateTarget, { passive: true })
+    window.addEventListener('resize', updateTarget)
+    video?.addEventListener('loadedmetadata', requestSeek)
+    video?.addEventListener('seeked', onSeeked)
+
+    return () => {
+      disposed = true
+      cancelAnimationFrame(animationFrame)
+      clearTimeout(seekTimer)
+      window.removeEventListener('scroll', updateTarget)
+      window.removeEventListener('resize', updateTarget)
+      video?.removeEventListener('loadedmetadata', requestSeek)
+      video?.removeEventListener('seeked', onSeeked)
+    }
+  }, [reducedMotion, rootRef, sections, src, videoRef])
+
+  const onLoadedMetadata = () => {
+    setReady(true)
+  }
+
+  return { activeIndex, loadProgress, ready, error, onLoadedMetadata }
+}
