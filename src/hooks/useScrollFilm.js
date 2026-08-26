@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { progressToTime, scrollProgress, sectionIndexAt } from '../utils/scroll'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { buildTimelineRanges, mapTimeline, scrollProgress } from '../utils/scroll'
 
 async function fetchAsBlob(url, onProgress, signal) {
   const response = await fetch(url, { signal })
@@ -27,12 +27,24 @@ async function fetchAsBlob(url, onProgress, signal) {
   return new Blob(chunks, { type: 'video/mp4' })
 }
 
-export function useScrollFilm({ rootRef, videoRef, sections, src, reducedMotion }) {
-  const [activeIndex, setActiveIndex] = useState(0)
+export function useScrollFilm({
+  rootRef,
+  videoRef,
+  chapters,
+  src,
+  reducedMotion,
+  compactPlayback,
+}) {
+  const { ranges, totalWeight } = useMemo(
+    () => buildTimelineRanges(chapters, compactPlayback),
+    [chapters, compactPlayback],
+  )
+  const [timeline, setTimeline] = useState(() => mapTimeline(0, ranges))
   const [loadProgress, setLoadProgress] = useState(reducedMotion ? 100 : 0)
   const [ready, setReady] = useState(reducedMotion)
   const [error, setError] = useState('')
-  const targetRef = useRef(0)
+  const desiredVideoTimeRef = useRef(0)
+  const desiredIsMuseumRef = useRef(false)
   const objectUrlRef = useRef('')
 
   useEffect(() => {
@@ -60,6 +72,7 @@ export function useScrollFilm({ rootRef, videoRef, sections, src, reducedMotion 
     return () => {
       controller.abort()
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
+      objectUrlRef.current = ''
     }
   }, [reducedMotion, src, videoRef])
 
@@ -68,16 +81,13 @@ export function useScrollFilm({ rootRef, videoRef, sections, src, reducedMotion 
     if (!root) return undefined
 
     const video = videoRef.current
-    const compactDevice = window.matchMedia('(max-width: 860px), (pointer: coarse)').matches
-    const minimumSeekInterval = compactDevice ? 72 : 48
-    const minimumTimeDelta = compactDevice ? 0.1 : 0.05
+    const minimumSeekInterval = compactPlayback ? 72 : 48
+    const minimumTimeDelta = compactPlayback ? 0.1 : 0.05
     let animationFrame = 0
     let seekTimer = 0
     let lastSeekAt = 0
     let queuedTime = null
     let disposed = false
-
-    const desiredTime = () => progressToTime(targetRef.current, video?.duration)
 
     const requestSeek = () => {
       if (disposed || animationFrame || seekTimer) return
@@ -90,15 +100,14 @@ export function useScrollFilm({ rootRef, videoRef, sections, src, reducedMotion 
     const flushSeek = (now = performance.now()) => {
       if (!video || video.readyState < 1) return
 
-      const nextTime = desiredTime()
+      const nextTime = Math.min(desiredVideoTimeRef.current, Math.max(0, video.duration - 0.04))
+      const seekTolerance = desiredIsMuseumRef.current ? 0.01 : minimumTimeDelta
       if (video.seeking) {
-        // A fast flick can emit dozens of scroll events during one decoder seek.
-        // Retain only the newest destination so stale intermediate frames never queue.
         queuedTime = nextTime
         return
       }
 
-      if (Math.abs(video.currentTime - nextTime) <= minimumTimeDelta) {
+      if (Math.abs(video.currentTime - nextTime) <= seekTolerance) {
         queuedTime = null
         return
       }
@@ -123,16 +132,18 @@ export function useScrollFilm({ rootRef, videoRef, sections, src, reducedMotion 
 
     const updateTarget = () => {
       const rect = root.getBoundingClientRect()
-      targetRef.current = scrollProgress(rect.top, root.offsetHeight, window.innerHeight)
-      setActiveIndex((current) => {
-        const next = sectionIndexAt(targetRef.current, sections)
-        return current === next ? current : next
-      })
-      requestSeek()
+      const progress = scrollProgress(rect.top, root.offsetHeight, window.innerHeight)
+      const nextTimeline = mapTimeline(progress, ranges)
+      const videoTargetChanged = Math.abs(nextTimeline.videoTime - desiredVideoTimeRef.current) > 0.001
+      desiredVideoTimeRef.current = nextTimeline.videoTime
+      desiredIsMuseumRef.current = nextTimeline.chapter.kind === 'specimen'
+      setTimeline(nextTimeline)
+      if (videoTargetChanged) requestSeek()
     }
 
     const onSeeked = () => {
-      if (queuedTime !== null || Math.abs(video.currentTime - desiredTime()) > minimumTimeDelta) {
+      const seekTolerance = desiredIsMuseumRef.current ? 0.01 : minimumTimeDelta
+      if (queuedTime !== null || Math.abs(video.currentTime - desiredVideoTimeRef.current) > seekTolerance) {
         requestSeek()
       }
     }
@@ -152,11 +163,15 @@ export function useScrollFilm({ rootRef, videoRef, sections, src, reducedMotion 
       video?.removeEventListener('loadedmetadata', requestSeek)
       video?.removeEventListener('seeked', onSeeked)
     }
-  }, [reducedMotion, rootRef, sections, src, videoRef])
+  }, [compactPlayback, ranges, rootRef, src, videoRef])
 
-  const onLoadedMetadata = () => {
-    setReady(true)
+  return {
+    ...timeline,
+    ranges,
+    totalWeight,
+    loadProgress,
+    ready,
+    error,
+    onLoadedMetadata: () => setReady(true),
   }
-
-  return { activeIndex, loadProgress, ready, error, onLoadedMetadata }
 }

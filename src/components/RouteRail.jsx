@@ -1,23 +1,25 @@
-export function RouteRail({ sections, activeIndex, onSelect }) {
+export function RouteRail({ items, activeId, onSelect }) {
+  const activeIndex = Math.max(0, items.findIndex((item) => item.id === activeId))
+
   return (
     <nav className="route" aria-label="Babak perjalanan kopi">
       <span className="route__track" aria-hidden="true" />
       <span
         className="route__fill"
         aria-hidden="true"
-        style={{ height: `${(activeIndex / (sections.length - 1)) * 100}%` }}
+        style={{ height: `${(activeIndex / (items.length - 1)) * 100}%` }}
       />
-      {sections.map((section, index) => (
+      {items.map((item, index) => (
         <button
           type="button"
-          key={section.id}
+          key={item.id}
           className={`route__stop ${activeIndex === index ? 'is-active' : ''}`}
-          onClick={() => onSelect(index)}
+          onClick={() => onSelect(item.chapterId)}
           aria-current={activeIndex === index ? 'step' : undefined}
-          aria-label={`Ke babak ${index + 1}: ${section.label}`}
+          aria-label={`Ke babak ${index + 1}: ${item.label}`}
         >
           <span className="route__dot" />
-          <span className="route__label">{section.label}</span>
+          <span className="route__label">{item.label}</span>
         </button>
       ))}
     </nav>

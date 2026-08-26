@@ -10,6 +10,8 @@
   --turmeric: #d79a3b;
   --parchment: #e9d9b6;
   --foam: #f6f0e4;
+  --museum-black: #0c0908;
+  --museum-brass: #c79a55;
 }
 
 * { box-sizing: border-box; }
@@ -32,7 +34,7 @@ button { color: inherit; }
 }
 .skip-link:focus { transform: translateY(0); }
 
-.journey { height: calc(var(--journey-scenes) * 175vh); position: relative; }
+.journey { height: var(--journey-height); position: relative; }
 .stage {
   position: sticky;
   top: 0;
@@ -72,6 +74,99 @@ button { color: inherit; }
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
   mix-blend-mode: soft-light;
 }
+.journey.is-museum .media__video.is-ready,
+.journey.is-museum .media__poster { opacity: 0; }
+.journey.is-museum .media__wash { opacity: 0; }
+.media__wash { transition: opacity .7s ease; }
+
+.museum {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  background: var(--museum-black);
+  transition: opacity .75s cubic-bezier(.2,.7,.2,1);
+}
+.museum.is-visible { opacity: 1; }
+.museum__backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 68% 44%, rgba(199,154,85,.18), transparent 24%),
+    radial-gradient(circle at 82% 36%, rgba(182,74,54,.12), transparent 31%),
+    linear-gradient(115deg, #0b0807 0%, #160e0b 54%, #090706 100%);
+}
+.museum__photo {
+  position: absolute;
+  inset: -4%;
+  width: 108%;
+  height: 108%;
+  object-fit: cover;
+  object-position: 70% center;
+  opacity: .18;
+  filter: saturate(.8) brightness(.55) blur(3px);
+  transform: scale(1.03);
+  animation: museum-photo-in .8s ease both;
+  transition: opacity .45s ease, filter .45s ease;
+}
+.museum.is-fallback .museum__photo { opacity: .78; filter: saturate(.9) brightness(.7); }
+.museum__viewport {
+  position: absolute;
+  z-index: 2;
+  inset: 3% 5% 3% 38%;
+}
+.museum__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: grab;
+  touch-action: pan-y;
+  opacity: 0;
+  transition: opacity .55s ease;
+  pointer-events: none;
+}
+.museum.has-webgl .museum__canvas { opacity: 1; }
+.museum.is-visible.has-webgl .museum__canvas { pointer-events: auto; }
+.museum__canvas:active { cursor: grabbing; }
+.museum__canvas:focus-visible { outline: 1px solid var(--museum-brass); outline-offset: -1.25rem; }
+.museum__plaque {
+  position: absolute;
+  z-index: 3;
+  right: clamp(4.5rem, 8vw, 9rem);
+  bottom: clamp(5.5rem, 10vh, 7.5rem);
+  width: min(16rem, 24vw);
+  padding: 1rem 1.1rem;
+  color: rgba(246,240,228,.72);
+  border-top: 1px solid rgba(199,154,85,.55);
+  background: linear-gradient(90deg, rgba(12,9,8,.72), transparent);
+}
+.museum__plaque span {
+  display: block;
+  color: var(--museum-brass);
+  font: 400 .62rem/1.2 'DM Mono', monospace;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.museum__plaque p { margin: .6rem 0 0; font-size: .72rem; line-height: 1.55; }
+.museum__control {
+  position: absolute;
+  z-index: 3;
+  top: 5.5rem;
+  right: clamp(5rem, 7vw, 8rem);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: .65rem;
+  color: rgba(246,240,228,.45);
+  font: 400 .52rem/1 'DM Mono', monospace;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  transform: none;
+}
+.museum__control i { width: 3.5rem; height: 1px; background: linear-gradient(90deg, transparent, var(--museum-brass), transparent); }
 
 .topbar {
   position: absolute;
@@ -106,6 +201,9 @@ button { color: inherit; }
   width: min(46rem, calc(100vw - 10rem));
 }
 .scene-copy__inner { animation: copy-arrive .75s cubic-bezier(.2,.75,.2,1) both; }
+.scene-copy.is-specimen { width: min(38rem, 42vw); bottom: clamp(5.5rem, 10vh, 7.5rem); }
+.scene-copy.is-specimen h1 { max-width: 10ch; font-size: clamp(2.8rem, 5.2vw, 5.8rem); }
+.scene-copy.is-specimen p { max-width: 31rem; }
 .scene-copy__meta {
   display: flex;
   justify-content: space-between;
@@ -137,6 +235,31 @@ button { color: inherit; }
   line-height: 1.65;
   text-wrap: pretty;
 }
+.museum-index { display: flex; gap: .55rem; margin-top: 1.35rem; }
+.museum-index button {
+  width: 1.8rem;
+  height: .22rem;
+  border: 0;
+  padding: 0;
+  background: rgba(246,240,228,.24);
+  cursor: pointer;
+  transition: width .25s ease, background .25s ease;
+}
+.museum-index button.is-active { width: 3.2rem; background: var(--scene-accent); }
+.museum-index button:focus-visible { outline: 2px solid var(--foam); outline-offset: 5px; }
+.source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem .85rem;
+  max-width: 33rem;
+  margin-top: 1rem;
+  font: 400 .53rem/1.4 'DM Mono', monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.source-links span { color: rgba(246,240,228,.38); }
+.source-links a { color: rgba(246,240,228,.72); text-underline-offset: .25rem; }
+.source-links a:hover { color: var(--scene-accent); }
 
 .cta {
   margin-top: 1.7rem;
@@ -259,9 +382,12 @@ button { color: inherit; }
   0% { transform: translateY(-100%); }
   50%, 100% { transform: translateY(100%); }
 }
+@keyframes museum-photo-in {
+  from { opacity: 0; transform: scale(1.08); }
+  to { transform: scale(1.03); }
+}
 
 @media (max-width: 760px) {
-  .journey { height: calc(var(--journey-scenes) * 145vh); }
   .media__video, .media__poster, .media__still { object-position: 58% center; }
   .media__wash {
     background:
@@ -274,6 +400,18 @@ button { color: inherit; }
   .scene-copy__meta { max-width: calc(100% - 2.7rem); margin-bottom: .85rem; }
   .scene-copy h1 { max-width: 10ch; font-size: clamp(2.65rem, 14vw, 4.6rem); line-height: .9; }
   .scene-copy p { max-width: 29rem; margin-top: 1rem; font-size: .86rem; line-height: 1.5; }
+  .scene-copy.is-specimen { left: 1.25rem; bottom: max(3.5rem, calc(env(safe-area-inset-bottom) + 2.8rem)); width: calc(100vw - 3.5rem); }
+  .scene-copy.is-specimen h1 { max-width: 11ch; font-size: clamp(2.25rem, 11.5vw, 3.7rem); }
+  .scene-copy.is-specimen p { max-width: calc(100% - 1rem); font-size: .79rem; line-height: 1.45; }
+  .museum__viewport { inset: 3.5rem 0 38% 0; }
+  .museum__photo { object-position: center 22%; opacity: .14; }
+  .museum__plaque { top: max(5.1rem, env(safe-area-inset-top)); right: 2.4rem; bottom: auto; width: 10.5rem; padding: .7rem .8rem; }
+  .museum__plaque p { display: none; }
+  .museum__control { display: none; }
+  .museum-index { margin-top: .9rem; gap: .4rem; }
+  .museum-index button { width: 1.25rem; }
+  .museum-index button.is-active { width: 2.2rem; }
+  .source-links { gap: .3rem .65rem; margin-top: .65rem; font-size: .46rem; }
   .cta { margin-top: 1.15rem; }
   .route { right: .7rem; width: 1rem; height: 34vh; }
   .route__label { display: none; }
@@ -293,4 +431,5 @@ button { color: inherit; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .scroll-cue { display: none; }
+  .museum__canvas { display: none; }
 }
