@@ -67,7 +67,6 @@ export function MuseumStage({
   return (
     <div className={`museum ${visible ? 'is-visible' : ''} ${ready ? 'has-photo' : ''} ${photoState === 'error' ? 'is-fallback' : ''}`} aria-hidden={!visible}>
       <div className="museum__backdrop" />
-      <img key={`backdrop-${chapter.image}`} className="museum__photo" src={source} alt="" />
 
       <div
         className="museum__viewport"
@@ -91,7 +90,6 @@ export function MuseumStage({
             onLoad={() => setPhotoState('ready')}
             onError={() => setPhotoState('error')}
           />
-          <span className="museum__specimen-ring" aria-hidden="true" />
         </div>
       </div>
 
