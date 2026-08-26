@@ -35,6 +35,7 @@ function useCompactPlayback() {
 export default function App() {
   const journeyRef = useRef(null)
   const videoRef = useRef(null)
+  const videoPrimedRef = useRef(false)
   const reducedMotion = useReducedMotion()
   const compactPlayback = useCompactPlayback()
   const film = useScrollFilm({
@@ -67,7 +68,8 @@ export default function App() {
 
   const primeVideo = () => {
     const video = videoRef.current
-    if (!video || reducedMotion) return
+    if (!video || reducedMotion || videoPrimedRef.current) return
+    videoPrimedRef.current = true
     const promise = video.play()
     promise?.then(() => video.pause()).catch(() => {})
   }

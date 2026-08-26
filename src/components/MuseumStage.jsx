@@ -31,11 +31,58 @@ function makeMaterial(THREE, texture, color, options = {}) {
     clearcoat: options.clearcoat ?? 0.08,
     clearcoatRoughness: 0.7,
     bumpMap: texture,
-    bumpScale: options.bumpScale ?? 0.11,
+    bumpScale: options.bumpScale ?? 0.045,
     transparent: options.transparent ?? false,
     opacity: options.opacity ?? 1,
-    side: THREE.DoubleSide,
   })
+}
+
+function makeBeanGeometry(THREE, {
+  width,
+  height,
+  depth,
+  curve,
+  grooveDepth,
+  grooveWidth,
+  asymmetry,
+}) {
+  const geometry = new THREE.SphereGeometry(1, 64, 48)
+  const positions = geometry.attributes.position
+
+  for (let index = 0; index < positions.count; index += 1) {
+    const sourceX = positions.getX(index)
+    const sourceY = positions.getY(index)
+    const sourceZ = positions.getZ(index)
+    const yNormal = sourceY
+    const endTaper = 0.94 + 0.06 * (1 - Math.abs(yNormal))
+    const sideBias = 1 + asymmetry * sourceX * (0.35 + 0.65 * (1 - yNormal * yNormal))
+    let x = sourceX * width * endTaper * sideBias
+    const y = sourceY * height
+    let z = sourceZ * depth * (0.93 + 0.07 * Math.cos(yNormal * Math.PI))
+
+    // A coffee bean has one continuous body. Push the front surface inward along
+    // a softly curved centre line instead of assembling two separate lobes.
+    if (sourceZ > 0) {
+      const centre = curve * Math.sin(yNormal * Math.PI * 1.08)
+      const distance = (x - centre) / Math.max(0.01, width * grooveWidth)
+      const groove = Math.exp(-distance * distance * 2.6)
+        * Math.pow(Math.max(0, 1 - yNormal * yNormal), 0.65)
+        * Math.pow(sourceZ, 0.45)
+      z -= depth * grooveDepth * groove
+      x += centre * groove * 0.12
+    }
+
+    // Very small organic irregularity catches the museum light without turning
+    // the silhouette into a mathematically perfect capsule.
+    const irregularity = 1
+      + 0.018 * Math.sin(sourceY * 13 + sourceX * 7)
+      + 0.009 * Math.sin(sourceZ * 19 - sourceY * 8)
+    positions.setXYZ(index, x * irregularity, y, z * irregularity)
+  }
+
+  positions.needsUpdate = true
+  geometry.computeVertexNormals()
+  return geometry
 }
 
 function makeBean(THREE, texture, {
@@ -44,30 +91,33 @@ function makeBean(THREE, texture, {
   height = 1.5,
   depth = 0.56,
   curve = 0.08,
+  grooveDepth = 0.52,
+  grooveWidth = 0.15,
+  asymmetry = 0.07,
   rotation = 0,
 } = {}) {
   const group = new THREE.Group()
   const material = makeMaterial(THREE, texture, color)
-  const lobeGeometry = new THREE.SphereGeometry(1, 48, 36)
-  lobeGeometry.scale(width * 0.58, height, depth)
+  const bean = new THREE.Mesh(
+    makeBeanGeometry(THREE, {
+      width, height, depth, curve, grooveDepth, grooveWidth, asymmetry,
+    }),
+    material,
+  )
+  group.add(bean)
 
-  const left = new THREE.Mesh(lobeGeometry, material)
-  const right = new THREE.Mesh(lobeGeometry.clone(), material)
-  left.position.x = -width * 0.28
-  right.position.x = width * 0.28
-  left.rotation.z = -curve * 0.3
-  right.rotation.z = curve * 0.3
-  group.add(left, right)
-
-  const grooveCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-curve * 0.4, -height * 0.72, depth * 0.93),
-    new THREE.Vector3(curve, -height * 0.25, depth * 1.01),
-    new THREE.Vector3(-curve, height * 0.2, depth * 1.01),
-    new THREE.Vector3(curve * 0.35, height * 0.72, depth * 0.93),
-  ])
+  const groovePoints = []
+  for (let index = 0; index <= 12; index += 1) {
+    const yNormal = -0.73 + (index / 12) * 1.46
+    const x = curve * Math.sin(yNormal * Math.PI * 1.08)
+    const surface = depth * Math.sqrt(Math.max(0, 1 - yNormal * yNormal))
+    const valley = surface - depth * grooveDepth * Math.pow(Math.max(0, 1 - yNormal * yNormal), 0.65)
+    groovePoints.push(new THREE.Vector3(x, yNormal * height, valley + depth * 0.025))
+  }
+  const grooveCurve = new THREE.CatmullRomCurve3(groovePoints)
   const groove = new THREE.Mesh(
-    new THREE.TubeGeometry(grooveCurve, 36, Math.max(0.024, width * 0.032), 10, false),
-    new THREE.MeshStandardMaterial({ color: '#190d09', roughness: 1 }),
+    new THREE.TubeGeometry(grooveCurve, 48, Math.max(0.009, width * 0.012), 8, false),
+    new THREE.MeshStandardMaterial({ color: '#1b0d09', roughness: 1 }),
   )
   group.add(groove)
   group.rotation.z = rotation
@@ -89,11 +139,14 @@ function makeAnatomy(THREE, texture) {
   cherry.scale.set(1, 1.08, 0.82)
   group.add(cherry)
 
-  const seedGeometry = new THREE.SphereGeometry(1, 44, 32)
-  seedGeometry.scale(0.42, 1, 0.34)
-  const seedMaterial = makeMaterial(THREE, texture, '#A7A27A', { roughness: 0.82, bumpScale: 0.055 })
-  const leftSeed = new THREE.Mesh(seedGeometry, seedMaterial)
-  const rightSeed = new THREE.Mesh(seedGeometry.clone(), seedMaterial)
+  const leftSeed = makeBean(THREE, texture, {
+    color: '#A7A27A', width: 0.39, height: 0.87, depth: 0.3,
+    curve: 0.025, grooveDepth: 0.32, grooveWidth: 0.16, asymmetry: 0.03,
+  })
+  const rightSeed = makeBean(THREE, texture, {
+    color: '#A7A27A', width: 0.39, height: 0.87, depth: 0.3,
+    curve: -0.025, grooveDepth: 0.32, grooveWidth: 0.16, asymmetry: -0.03,
+  })
   leftSeed.position.x = -0.47
   rightSeed.position.x = 0.47
   leftSeed.rotation.z = -0.05
@@ -103,14 +156,14 @@ function makeAnatomy(THREE, texture) {
 }
 
 function makeSpecimens(THREE, texture) {
-  const roasted = makeBean(THREE, texture, { color: '#522819', width: 1.08, height: 1.5, depth: 0.62, curve: 0.12, rotation: 0.12 })
+  const roasted = makeBean(THREE, texture, { color: '#512719', width: 1.02, height: 1.3, depth: 0.64, curve: 0.11, grooveDepth: 0.58, rotation: 0.09 })
   const anatomy = makeAnatomy(THREE, texture)
-  const arabica = makeBean(THREE, texture, { color: '#744027', width: 0.92, height: 1.72, depth: 0.55, curve: 0.24, rotation: 0.08 })
-  const robusta = makeBean(THREE, texture, { color: '#542A1E', width: 1.2, height: 1.28, depth: 0.65, curve: 0.025, rotation: -0.08 })
+  const arabica = makeBean(THREE, texture, { color: '#66331F', width: 0.98, height: 1.36, depth: 0.6, curve: 0.18, grooveDepth: 0.58, grooveWidth: 0.14, asymmetry: 0.08, rotation: 0.07 })
+  const robusta = makeBean(THREE, texture, { color: '#4C251A', width: 1.08, height: 1.15, depth: 0.67, curve: 0.035, grooveDepth: 0.5, grooveWidth: 0.13, asymmetry: 0.035, rotation: -0.05 })
 
   const beyond = new THREE.Group()
-  const liberica = makeBean(THREE, texture, { color: '#70402B', width: 0.96, height: 1.7, depth: 0.55, curve: 0.16, rotation: -0.1 })
-  const excelsa = makeBean(THREE, texture, { color: '#5B3023', width: 0.72, height: 1.4, depth: 0.48, curve: 0.08, rotation: 0.14 })
+  const liberica = makeBean(THREE, texture, { color: '#663A27', width: 0.92, height: 1.4, depth: 0.58, curve: 0.14, grooveDepth: 0.54, rotation: -0.08 })
+  const excelsa = makeBean(THREE, texture, { color: '#51291D', width: 0.75, height: 1.15, depth: 0.5, curve: 0.07, grooveDepth: 0.48, rotation: 0.11 })
   liberica.position.x = -0.9
   excelsa.position.x = 0.95
   beyond.add(liberica, excelsa)

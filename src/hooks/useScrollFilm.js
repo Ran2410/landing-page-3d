@@ -153,6 +153,7 @@ export function useScrollFilm({
     window.addEventListener('resize', updateTarget)
     video?.addEventListener('loadedmetadata', requestSeek)
     video?.addEventListener('seeked', onSeeked)
+    video?.addEventListener('pause', requestSeek)
 
     return () => {
       disposed = true
@@ -162,6 +163,7 @@ export function useScrollFilm({
       window.removeEventListener('resize', updateTarget)
       video?.removeEventListener('loadedmetadata', requestSeek)
       video?.removeEventListener('seeked', onSeeked)
+      video?.removeEventListener('pause', requestSeek)
     }
   }, [compactPlayback, ranges, rootRef, src, videoRef])
 
