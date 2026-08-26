@@ -111,7 +111,6 @@ export default function App() {
               localProgress={isMuseum ? film.localProgress : 0}
               visible={isMuseum}
               shouldLoad={film.activeIndex >= 1 && film.activeIndex <= 7}
-              reducedMotion={reducedMotion}
               compact={compactPlayback}
             />
           )}

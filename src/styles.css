@@ -116,22 +116,62 @@ button { color: inherit; }
   position: absolute;
   z-index: 2;
   inset: 3% 5% 3% 38%;
-}
-.museum__canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
   outline: none;
   cursor: grab;
   touch-action: pan-y;
-  opacity: 0;
-  transition: opacity .55s ease;
+  display: grid;
+  place-items: center;
   pointer-events: none;
 }
-.museum.has-webgl .museum__canvas { opacity: 1; }
-.museum.is-visible.has-webgl .museum__canvas { pointer-events: auto; }
-.museum__canvas:active { cursor: grabbing; }
-.museum__canvas:focus-visible { outline: 1px solid var(--museum-brass); outline-offset: -1.25rem; }
+.museum.is-visible.has-photo .museum__viewport { pointer-events: auto; }
+.museum__viewport:active { cursor: grabbing; }
+.museum__viewport:focus-visible { outline: 1px solid var(--museum-brass); outline-offset: -1.25rem; }
+.museum__specimen-shell {
+  position: relative;
+  width: min(43vw, 39rem);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(199,154,85,.22);
+  border-radius: 50%;
+  background: #090605;
+  box-shadow: 0 2.8rem 8rem rgba(0,0,0,.54), 0 0 5rem rgba(182,74,54,.1);
+}
+.museum__specimen-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  opacity: 0;
+  filter: saturate(1.04) contrast(1.04) brightness(.92);
+  transform-origin: 50% 50%;
+  will-change: transform;
+  transition: opacity .6s ease;
+}
+.museum.has-photo .museum__specimen-photo { opacity: 1; }
+.museum__specimen-ring {
+  position: absolute;
+  z-index: 2;
+  inset: .65rem;
+  border: 1px solid rgba(199,154,85,.16);
+  border-radius: 50%;
+  box-shadow: inset 0 0 4rem rgba(199,154,85,.07);
+  pointer-events: none;
+}
+.museum__photo-error {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 61%;
+  color: rgba(246,240,228,.62);
+  font: 400 .58rem/1.4 'DM Mono', monospace;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  transform: translate(-50%, -50%);
+}
 .museum__plaque {
   position: absolute;
   z-index: 3;
@@ -404,6 +444,7 @@ button { color: inherit; }
   .scene-copy.is-specimen h1 { max-width: 11ch; font-size: clamp(2.25rem, 11.5vw, 3.7rem); }
   .scene-copy.is-specimen p { max-width: calc(100% - 1rem); font-size: .79rem; line-height: 1.45; }
   .museum__viewport { inset: 3.5rem 0 38% 0; }
+  .museum__specimen-shell { width: min(96vw, 34rem); }
   .museum__photo { object-position: center 22%; opacity: .14; }
   .museum__plaque { top: max(5.1rem, env(safe-area-inset-top)); right: 2.4rem; bottom: auto; width: 10.5rem; padding: .7rem .8rem; }
   .museum__plaque p { display: none; }
@@ -431,5 +472,5 @@ button { color: inherit; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .scroll-cue { display: none; }
-  .museum__canvas { display: none; }
+  .museum__specimen-photo { transform: none !important; }
 }
